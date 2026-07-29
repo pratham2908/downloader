@@ -9,7 +9,11 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install deps, then force the very latest yt-dlp. YouTube changes constantly,
+# so a version frozen by Docker layer caching quickly breaks with
+# "Requested format is not available"; this keeps the build current.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --upgrade yt-dlp
 
 COPY app ./app
 COPY web ./web

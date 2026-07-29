@@ -145,6 +145,14 @@ python -m pytest -q
 Unit tests cover the persistence layer (JSON **and** Mongo backends, via an
 in-memory `mongomock`) and URL/format handling — all offline, no live DB.
 
+## Troubleshooting
+
+**"Requested format is not available"** — yt-dlp is out of date for YouTube's
+current format serving. Locally: `pip install -U yt-dlp`. On a hosted deploy,
+a plain code push won't refresh it (Docker caches the pip layer); bump the
+`yt-dlp>=` floor in `requirements.txt` and push — that busts the cache and
+installs the latest.
+
 ## Notes
 
 - This is for **personal use** — respect YouTube's Terms of Service and creators' rights.
