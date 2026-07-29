@@ -1,7 +1,12 @@
-"""JSON-file persistence for saved channels and settings.
+"""Persistence for saved channels, download history, and settings.
 
-Deliberately dependency-free and thread-safe. Two small files live under
-``data/``: ``channels.json`` (a list) and ``settings.json`` (an object).
+Saved channels and download history live in **MongoDB** when it's configured
+(shared across every machine that points at the same DB — local and hosted).
+When Mongo isn't configured/reachable, they fall back to local JSON files so the
+app still runs standalone. See ``db.py``.
+
+Settings always stay local (JSON): ``download_dir`` is machine-specific, so it
+can't be shared through a single DB.
 """
 from __future__ import annotations
 
@@ -10,6 +15,7 @@ import os
 import threading
 from pathlib import Path
 
+from . import db
 from .models import HistoryEntry, SavedChannel, Settings
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -40,7 +46,7 @@ def _write_json(path: Path, data) -> None:
     os.replace(tmp, path)  # atomic on POSIX
 
 
-# --- settings -------------------------------------------------------------
+# --- settings (always local) ----------------------------------------------
 
 def get_settings() -> Settings:
     with _lock:
@@ -58,40 +64,58 @@ def save_settings(settings: Settings) -> Settings:
 # --- channels -------------------------------------------------------------
 
 def list_channels() -> list[SavedChannel]:
+    if db.mongo_enabled():
+        docs = db.channels_col().find({}, {"_id": 0})
+        return [SavedChannel(**d) for d in docs]
     with _lock:
         raw = _read_json(CHANNELS_FILE, [])
         return [SavedChannel(**c) for c in raw]
 
 
-def _persist_channels(channels: list[SavedChannel]) -> None:
-    _write_json(CHANNELS_FILE, [c.model_dump() for c in channels])
-
-
 def add_channel(channel: SavedChannel) -> list[SavedChannel]:
+    """Add a channel, de-duping on URL. A repeat URL updates name/handle and
+    keeps an existing thumbnail if the new one is blank."""
+    if db.mongo_enabled():
+        col = db.channels_col()
+        existing = col.find_one({"url": channel.url})
+        if existing:
+            col.update_one({"url": channel.url}, {"$set": {
+                "name": channel.name,
+                "handle": channel.handle,
+                "thumbnail": channel.thumbnail or existing.get("thumbnail"),
+            }})
+        else:
+            col.insert_one(channel.model_dump())
+        return list_channels()
     with _lock:
         channels = list_channels()
-        # De-dupe on normalized URL; update name/thumbnail if it already exists.
-        existing = next((c for c in channels if c.url == channel.url), None)
-        if existing:
-            existing.name = channel.name
-            existing.handle = channel.handle
-            existing.thumbnail = channel.thumbnail or existing.thumbnail
+        existing_c = next((c for c in channels if c.url == channel.url), None)
+        if existing_c:
+            existing_c.name = channel.name
+            existing_c.handle = channel.handle
+            existing_c.thumbnail = channel.thumbnail or existing_c.thumbnail
         else:
             channels.append(channel)
-        _persist_channels(channels)
+        _write_json(CHANNELS_FILE, [c.model_dump() for c in channels])
         return channels
 
 
 def remove_channel(channel_id: str) -> list[SavedChannel]:
+    if db.mongo_enabled():
+        db.channels_col().delete_one({"id": channel_id})
+        return list_channels()
     with _lock:
         channels = [c for c in list_channels() if c.id != channel_id]
-        _persist_channels(channels)
+        _write_json(CHANNELS_FILE, [c.model_dump() for c in channels])
         return channels
 
 
 # --- download history / library -------------------------------------------
 
 def list_history() -> list[HistoryEntry]:
+    if db.mongo_enabled():
+        docs = db.history_col().find({}, {"_id": 0}).sort("downloaded_at", -1)
+        return [HistoryEntry(**d) for d in docs]
     with _lock:
         raw = _read_json(HISTORY_FILE, [])
         entries = [HistoryEntry(**e) for e in raw]
@@ -99,13 +123,16 @@ def list_history() -> list[HistoryEntry]:
         return entries
 
 
-def _persist_history(entries: list[HistoryEntry]) -> None:
-    _write_json(HISTORY_FILE, [e.model_dump() for e in entries])
-
-
 def add_history(entry: HistoryEntry) -> list[HistoryEntry]:
     """Record a completed download. Re-downloading the same video in the same
     format updates the existing row (path/size/time) instead of duplicating."""
+    if db.mongo_enabled():
+        db.history_col().replace_one(
+            {"video_id": entry.video_id, "format": entry.format},
+            entry.model_dump(),
+            upsert=True,
+        )
+        return list_history()
     with _lock:
         entries = list_history()
         existing = next(
@@ -115,32 +142,38 @@ def add_history(entry: HistoryEntry) -> list[HistoryEntry]:
         if existing:
             entries = [e for e in entries if e is not existing]
         entries.append(entry)
-        _persist_history(entries)
+        _write_json(HISTORY_FILE, [e.model_dump() for e in entries])
         return list_history()
 
 
 def remove_history(entry_id: str) -> list[HistoryEntry]:
+    if db.mongo_enabled():
+        db.history_col().delete_one({"id": entry_id})
+        return list_history()
     with _lock:
         entries = [e for e in list_history() if e.id != entry_id]
-        _persist_history(entries)
+        _write_json(HISTORY_FILE, [e.model_dump() for e in entries])
         return entries
 
 
 def clear_history() -> list[HistoryEntry]:
+    if db.mongo_enabled():
+        db.history_col().delete_many({})
+        return []
     with _lock:
-        _persist_history([])
+        _write_json(HISTORY_FILE, [])
         return []
 
 
 def history_presence() -> tuple[set[str], set[str]]:
     """Split library entries into (present, missing) video-id sets by whether
-    their file is still on disk.
+    their file is still on disk *on this machine*.
 
-    This is a second, download-dir-independent source of truth for
-    "already downloaded": it survives changing the download folder, and it
-    notices when you delete a file. An id counts as *present* if any of its
-    entries (video/audio) still has a file; *missing* only if it has entries
-    and none of them resolve to an existing file.
+    A download-dir-independent source of truth for "already downloaded": it
+    survives changing the download folder and notices deleted files. An id is
+    *present* if any of its entries still resolves to a file here; *missing*
+    only if it has entries and none do. (When history is shared via Mongo, this
+    correctly reflects what the current machine actually holds.)
     """
     present: set[str] = set()
     seen: set[str] = set()
