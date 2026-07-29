@@ -74,13 +74,46 @@ channels in `data/channels.json`.
 
 > Changing **concurrent downloads** takes effect on the next restart.
 
+## Shared storage (MongoDB, optional)
+
+By default, saved channels and download history live in local JSON files under
+`data/`. To share them across machines (e.g. your Mac and a hosted instance),
+point the app at MongoDB — the **same cluster as automation-server**:
+
+```bash
+cp .env.example .env      # then fill in MONGODB_URI
+```
+
+```
+MONGODB_URI=mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB_NAME=youtube_automation
+```
+
+When set, **saved channels** and **download history** are stored in Mongo under
+dedicated collections (`reel_channels`, `reel_history`) — separate from
+automation-server's own data. If `MONGODB_URI` is unset or the cluster is
+unreachable, the app silently falls back to the local JSON files, so it always
+runs. **Settings stay local** (the download folder is machine-specific).
+
+> **Atlas note:** the machine running the app must be in your cluster's Network
+> Access allowlist, or connections are refused (and it falls back to JSON).
+
+Migrate existing local channels/history into Mongo (idempotent):
+
+```bash
+python scripts/migrate_to_mongo.py            # dry run
+python scripts/migrate_to_mongo.py --apply
+```
+
 ## Tests
 
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Unit tests cover the persistence layer and URL/format handling (no network).
+Unit tests cover the persistence layer (JSON **and** Mongo backends, via an
+in-memory `mongomock`) and URL/format handling — all offline, no live DB.
 
 ## Notes
 
