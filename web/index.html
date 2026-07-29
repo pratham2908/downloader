@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reel — YouTube Downloader</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23100d0b'/%3E%3Cpath d='M16 3a13 13 0 0 1 0 26z' fill='%23ff5230'/%3E%3C/svg%3E" />
+  <meta name="theme-color" content="#100d0b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand__mark">◐</span>
+        <span class="brand__name">Reel</span>
+      </div>
+
+      <div class="side-section">
+        <div class="side-section__head">
+          <span>Saved Channels</span>
+          <span class="chip" id="channelCount">0</span>
+        </div>
+        <div class="channel-list" id="channelList">
+          <p class="empty-hint">No saved channels yet. Open a channel and hit <em>Save</em>.</p>
+        </div>
+      </div>
+
+      <button class="side-btn" id="openLibrary">
+        <span class="side-btn__icon">▤</span> Library
+        <span class="chip" id="libraryCount">0</span>
+      </button>
+      <button class="side-btn" id="openSettings">
+        <span class="side-btn__icon">⚙</span> Settings
+      </button>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar__title">
+          <h1>Pull anything off <span class="accent">YouTube</span>.</h1>
+          <p class="sub">Paste a video, playlist, or channel link — browse, pick, download.</p>
+        </div>
+        <button class="downloads-toggle" id="downloadsToggle">
+          <span class="downloads-toggle__dot" id="activeDot"></span>
+          Downloads
+          <span class="chip chip--accent" id="activeCount">0</span>
+        </button>
+      </header>
+
+      <!-- Paste bar -->
+      <section class="fetchbar">
+        <div class="fetchbar__input">
+          <span class="fetchbar__glyph">↳</span>
+          <input id="urlInput" type="text" spellcheck="false" autocomplete="off"
+            placeholder="https://youtube.com/@channel   ·   playlist   ·   video link" />
+        </div>
+        <div class="fetchbar__controls">
+          <div class="seg" id="formatSeg" role="tablist" aria-label="Format">
+            <button class="seg__btn is-active" data-format="video">Video · MP4</button>
+            <button class="seg__btn" data-format="audio">Audio</button>
+          </div>
+          <div class="select-wrap">
+            <select id="qualitySelect" aria-label="Quality">
+              <option value="best">Best</option>
+              <option value="2160">4K · 2160p</option>
+              <option value="1440">1440p</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+            </select>
+          </div>
+          <button class="btn btn--primary" id="fetchBtn">
+            <span class="btn__label">Fetch</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="results" id="results">
+        <div class="placeholder" id="placeholder">
+          <div class="placeholder__art">◐</div>
+          <p>Paste a link above to get started.</p>
+          <span>Channel links list every upload. Video &amp; playlist links work too.</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Sticky action bar for selection -->
+  <div class="actionbar" id="actionBar" hidden>
+    <label class="checkall">
+      <input type="checkbox" id="selectAll" />
+      <span class="checkall__box"></span>
+      <span id="selectionLabel">0 selected</span>
+    </label>
+    <div class="actionbar__right">
+      <button class="btn btn--ghost" id="saveChannelBtn" hidden>☆ Save channel</button>
+      <button class="btn btn--primary" id="downloadSelected" disabled>
+        Download selected
+      </button>
+    </div>
+  </div>
+
+  <!-- Downloads drawer -->
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer__head">
+      <h2>Downloads</h2>
+      <div class="drawer__actions">
+        <button class="linkbtn" id="cancelAll" hidden>Cancel all</button>
+        <button class="linkbtn" id="clearFinished">Clear finished</button>
+        <button class="iconbtn" id="closeDrawer" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="drawer__body" id="jobList">
+      <p class="empty-hint">Nothing downloading yet.</p>
+    </div>
+  </div>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <!-- Settings modal -->
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal__card">
+      <div class="modal__head">
+        <h2>Settings</h2>
+        <button class="iconbtn" id="closeSettings" aria-label="Close">✕</button>
+      </div>
+      <div class="modal__body">
+        <label class="field">
+          <span>Download folder</span>
+          <div class="field__pick">
+            <input type="text" id="setDir" spellcheck="false" />
+            <button type="button" class="btn btn--ghost" id="browseDir">Browse…</button>
+          </div>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Default format</span>
+            <select id="setFormat">
+              <option value="video">Video · MP4</option>
+              <option value="audio">Audio</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Default quality</span>
+            <select id="setQuality">
+              <option value="best">Best</option>
+              <option value="2160">4K · 2160p</option>
+              <option value="1440">1440p</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Audio codec</span>
+            <select id="setCodec">
+              <option value="mp3">MP3</option>
+              <option value="m4a">M4A</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Concurrent downloads <em>(restart to apply)</em></span>
+            <input type="number" id="setConcurrency" min="1" max="8" />
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Max videos to fetch per channel</span>
+            <input type="number" id="setLimit" min="10" max="1000" step="10" />
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="setPerChannel" />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span>Per-channel folders</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn--ghost" id="cancelSettings">Cancel</button>
+        <button class="btn btn--primary" id="saveSettings">Save settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Library modal -->
+  <div class="modal" id="libraryModal" hidden>
+    <div class="modal__card modal__card--wide">
+      <div class="modal__head">
+        <h2>Library <span class="chip" id="libraryHeadCount">0</span></h2>
+        <div class="drawer__actions">
+          <button class="linkbtn" id="clearHistory">Clear all</button>
+          <button class="iconbtn" id="closeLibrary" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="library__search">
+        <span class="library__search-glyph">⌕</span>
+        <input type="text" id="librarySearch" spellcheck="false" autocomplete="off"
+          placeholder="Search by title or channel…" />
+      </div>
+      <div class="library__list" id="libraryList">
+        <p class="empty-hint">No downloads yet. Grab a few videos and they'll show up here.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

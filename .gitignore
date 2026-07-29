@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime state (regenerated on first run)
+data/*.json
+
+# never commit downloaded media or archives
+downloads/
+*.mp4
+*.mp3
+*.m4a
+.download-archive*.txt
+
+# macOS
+.DS_Store
