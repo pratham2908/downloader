@@ -1,0 +1,34 @@
+# Render Blueprint — one-click deploy of Reel as a hosted web app.
+# In Render: New > Blueprint, point it at this repo. It reads this file.
+#
+# After the first deploy, set the two secret env vars (MONGODB_URI, REEL_PASSWORD)
+# in the service's Environment tab, and upload your cookies.txt to the disk at
+# /data/cookies.txt (Shell tab) so yt-dlp isn't blocked by YouTube.
+services:
+  - type: web
+    name: reel
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # A persistent disk requires a paid instance type (free tier has no disk and
+    # sleeps). "starter" is the cheapest that supports disks.
+    plan: starter
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: reel-data
+      mountPath: /data          # downloads + cookies.txt live here, survive restarts
+      sizeGB: 5                  # bump this if you keep large videos on the server
+    envVars:
+      - key: REEL_HOSTED
+        value: "1"
+      - key: REEL_DOWNLOAD_DIR
+        value: /data/downloads
+      - key: REEL_COOKIES_FILE
+        value: /data/cookies.txt
+      - key: MONGODB_DB_NAME
+        value: youtube_automation
+      # Secrets — set these in the dashboard, not in git:
+      - key: MONGODB_URI
+        sync: false
+      - key: REEL_PASSWORD
+        sync: false

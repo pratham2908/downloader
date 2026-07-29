@@ -42,6 +42,13 @@ def test_auth_required_and_accepts_correct_password(monkeypatch):
     assert c.get("/api/config", headers={"Authorization": f"Basic {ok}"}).status_code == 200
 
 
+def test_healthz_bypasses_auth(monkeypatch):
+    monkeypatch.setattr(config, "PASSWORD", "s3cret")
+    r = _client().get("/healthz")  # no credentials
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
+
+
 def test_pick_folder_and_reveal_blocked_when_hosted(monkeypatch):
     monkeypatch.setattr(config, "HOSTED", True)
     monkeypatch.setattr(config, "PASSWORD", None)

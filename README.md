@@ -111,7 +111,14 @@ The app can run on a persistent container host (**Render Web Service**, Railway,
 Fly.io — *not* Netlify/static hosts). When hosted, downloads land on the server
 and you pull each file to your device with the **Download** button.
 
-A `Dockerfile` is included. Deploy flow (Render example):
+A `Dockerfile` **and** a `render.yaml` Blueprint are included.
+
+**One-click (Render Blueprint):** New → **Blueprint** → point at this repo. It
+provisions the web service, a 5 GB disk at `/data`, and the health check. Then
+set the two secrets (`MONGODB_URI`, `REEL_PASSWORD`) in the Environment tab and
+upload `cookies.txt` to `/data/cookies.txt` via the Shell tab.
+
+**Manual**, if you prefer (Render example):
 
 1. Push this repo; create a **Web Service** from the Dockerfile.
 2. Add a **persistent disk** mounted at `/data` (keeps files + cookies across restarts).
