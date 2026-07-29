@@ -105,6 +105,27 @@ python scripts/migrate_to_mongo.py            # dry run
 python scripts/migrate_to_mongo.py --apply
 ```
 
+## Deploy as a hosted web app
+
+The app can run on a persistent container host (**Render Web Service**, Railway,
+Fly.io — *not* Netlify/static hosts). When hosted, downloads land on the server
+and you pull each file to your device with the **Download** button.
+
+A `Dockerfile` is included. Deploy flow (Render example):
+
+1. Push this repo; create a **Web Service** from the Dockerfile.
+2. Add a **persistent disk** mounted at `/data` (keeps files + cookies across restarts).
+3. Set environment variables:
+   - `MONGODB_URI` — so channels/history are shared with your local install.
+   - `REEL_PASSWORD` — a login (the app is otherwise open to the world).
+   - `REEL_COOKIES_FILE=/data/cookies.txt` — upload your YouTube `cookies.txt`
+     to the disk so yt-dlp isn't blocked by datacenter-IP bot checks.
+   - (`REEL_HOSTED=1` and `REEL_DOWNLOAD_DIR=/data/downloads` are preset in the image.)
+
+Hosted mode automatically hides the local-only controls (folder picker, Reveal
+in Finder) and every request is behind the password. See `.env.example` for the
+full list of knobs.
+
 ## Tests
 
 ```bash

@@ -20,7 +20,18 @@ const state = {
   visible: 0,               // how many cards are shown in the active tab
   library: [],              // download history entries
   _lastCompleted: 0,        // completed-job count, to detect new finishes
+  hosted: false,            // server is remote: hide local-only controls
 };
+
+// Trigger a browser download of a finished file from the server.
+function deviceDownload(videoId, fmt) {
+  const a = document.createElement("a");
+  a.href = `/api/file/${encodeURIComponent(videoId)}?fmt=${encodeURIComponent(fmt)}`;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 const CHANNEL_TABS = [
   { id: "videos", label: "Videos" },
@@ -419,6 +430,8 @@ function renderJobs(jobs) {
     b.addEventListener("click", () => reveal(b.dataset.reveal)));
   list.querySelectorAll("[data-cancel]").forEach((b) =>
     b.addEventListener("click", () => cancelJob(b.dataset.cancel)));
+  list.querySelectorAll("[data-dl-vid]").forEach((b) =>
+    b.addEventListener("click", () => deviceDownload(b.dataset.dlVid, b.dataset.dlFmt)));
 }
 
 function jobHTML(j) {
@@ -430,7 +443,9 @@ function jobHTML(j) {
     right.push(`<span>${j.eta ? "ETA " + esc(j.eta) : ""}</span>`);
   } else if (j.status === "completed") {
     right.push(`<span>${esc(j.size || "done")}</span>`);
-    if (j.filepath) right.push(`<button class="job__link" data-reveal="${esc(j.filepath)}">Reveal</button>`);
+    right.push(`<button class="job__link" data-dl-vid="${esc(j.video_id)}" data-dl-fmt="${esc(j.format)}">Download</button>`);
+    if (!state.hosted && j.filepath)
+      right.push(`<button class="job__link" data-reveal="${esc(j.filepath)}">Reveal</button>`);
   } else if (j.status === "error" || j.status === "skipped" || j.status === "cancelled") {
     right.push(`<span class="err" title="${esc(j.error || "")}">${esc(j.error || "")}</span>`);
     if (j.status === "error" || j.status === "cancelled")
@@ -611,13 +626,16 @@ function renderLibrary() {
           </div>
         </div>
         <div class="lib-item__actions">
-          ${e.exists ? `<button class="job__link" data-lib-reveal="${esc(e.filepath)}">Reveal</button>` : ""}
+          ${e.exists ? `<button class="job__link" data-dl-vid="${esc(e.video_id)}" data-dl-fmt="${esc(e.format)}">Download</button>` : ""}
+          ${!state.hosted && e.exists ? `<button class="job__link" data-lib-reveal="${esc(e.filepath)}">Reveal</button>` : ""}
           <button class="job__link" data-lib-redl="${esc(e.id)}">Re-download</button>
           <button class="iconbtn iconbtn--sm" data-lib-remove="${esc(e.id)}" title="Remove from library">✕</button>
         </div>
       </div>`;
   }).join("");
 
+  list.querySelectorAll("[data-dl-vid]").forEach((b) =>
+    b.addEventListener("click", () => deviceDownload(b.dataset.dlVid, b.dataset.dlFmt)));
   list.querySelectorAll("[data-lib-reveal]").forEach((b) =>
     b.addEventListener("click", () => reveal(b.dataset.libReveal)));
   list.querySelectorAll("[data-lib-redl]").forEach((b) =>
@@ -769,10 +787,20 @@ function init() {
     }
   });
 
+  loadConfig();
   loadSettings();
   loadChannels();
   refreshLibraryCount();
   connectStream();
+}
+
+// Learn whether we're hosted; hide local-only controls (folder picker, Reveal).
+async function loadConfig() {
+  try {
+    const cfg = await api("/api/config");
+    state.hosted = !!cfg.hosted;
+    document.body.classList.toggle("hosted", state.hosted);
+  } catch { /* default to local */ }
 }
 
 document.addEventListener("DOMContentLoaded", init);

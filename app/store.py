@@ -15,7 +15,7 @@ import os
 import threading
 from pathlib import Path
 
-from . import db
+from . import config, db
 from .models import HistoryEntry, SavedChannel, Settings
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -52,6 +52,10 @@ def get_settings() -> Settings:
     with _lock:
         raw = _read_json(SETTINGS_FILE, {})
         raw.setdefault("download_dir", _default_download_dir())
+        # Hosted deployments force the download folder via env (a server path),
+        # so a stored local path never leaks into the container.
+        if config.DOWNLOAD_DIR_OVERRIDE:
+            raw["download_dir"] = config.DOWNLOAD_DIR_OVERRIDE
         return Settings(**raw)
 
 

@@ -15,38 +15,22 @@ from __future__ import annotations
 
 import os
 import threading
-from pathlib import Path
 from typing import Optional
 
 import certifi
 
+from . import config
+
 try:
     from pymongo import MongoClient
     from pymongo.collection import Collection
-    from pymongo.errors import PyMongoError
 except ImportError:  # pymongo not installed -> Mongo simply disabled
     MongoClient = None  # type: ignore
     Collection = None  # type: ignore
     PyMongoError = Exception  # type: ignore
 
-
-def _load_dotenv() -> None:
-    """Minimal .env loader (no dependency). Existing env vars win."""
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    if not env_path.exists():
-        return
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, val = line.split("=", 1)
-        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
-
-
-_load_dotenv()
-
-MONGODB_URI = os.getenv("MONGODB_URI")
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "youtube_automation")
+MONGODB_URI = config.MONGODB_URI
+MONGODB_DB_NAME = config.MONGODB_DB_NAME
 CHANNELS_COLLECTION = "reel_channels"
 HISTORY_COLLECTION = "reel_history"
 

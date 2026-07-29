@@ -35,6 +35,9 @@
 /* The `hidden` attribute must win over the display set by .modal/.drawer/etc. */
 [hidden] { display: none !important; }
 
+/* Controls that only make sense when the server IS your machine. */
+body.hosted .local-only { display: none !important; }
+
 html, body { height: 100%; }
 
 body {

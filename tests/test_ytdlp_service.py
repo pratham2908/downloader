@@ -1,8 +1,35 @@
 """Unit tests for URL handling and download-option building (no network)."""
 from pathlib import Path
 
+from app import config
 from app import ytdlp_service as yt
 from app.models import Settings
+
+
+def test_apply_cookies_file(monkeypatch):
+    monkeypatch.setattr(config, "COOKIES_FILE", "/data/cookies.txt")
+    monkeypatch.setattr(config, "COOKIES_FROM_BROWSER", None)
+    assert yt.apply_cookies({})["cookiefile"] == "/data/cookies.txt"
+
+
+def test_apply_cookies_from_browser(monkeypatch):
+    monkeypatch.setattr(config, "COOKIES_FILE", None)
+    monkeypatch.setattr(config, "COOKIES_FROM_BROWSER", "chrome")
+    assert yt.apply_cookies({})["cookiesfrombrowser"] == ("chrome",)
+
+
+def test_apply_cookies_none(monkeypatch):
+    monkeypatch.setattr(config, "COOKIES_FILE", None)
+    monkeypatch.setattr(config, "COOKIES_FROM_BROWSER", None)
+    assert yt.apply_cookies({}) == {}
+
+
+def test_download_opts_includes_cookies(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "COOKIES_FILE", "/data/cookies.txt")
+    monkeypatch.setattr(config, "COOKIES_FROM_BROWSER", None)
+    opts = yt.build_download_opts(Settings(download_dir=str(tmp_path)),
+                                  "video", "best", "Chan", lambda d: None)
+    assert opts["cookiefile"] == "/data/cookies.txt"
 
 
 SAMPLE_RSS = """<?xml version="1.0"?>
