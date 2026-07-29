@@ -50,7 +50,8 @@ def _password_ok(header: str) -> bool:
 
 @app.middleware("http")
 async def require_password(request: Request, call_next):
-    if config.PASSWORD:
+    # /healthz is exempt so the host's health checks pass without credentials.
+    if config.PASSWORD and request.url.path != "/healthz":
         if not _password_ok(request.headers.get("Authorization", "")):
             return Response(
                 status_code=401,
@@ -64,6 +65,12 @@ async def require_password(request: Request, call_next):
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/healthz")
+def healthz() -> dict:
+    """Unauthenticated liveness probe for the host's health checks."""
+    return {"status": "ok"}
 
 
 @app.get("/api/config")
