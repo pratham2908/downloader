@@ -16,7 +16,21 @@ from typing import Callable, Optional
 
 from yt_dlp import YoutubeDL
 
+from . import config
 from .models import ResolveResponse, Settings, VideoItem
+
+
+def apply_cookies(opts: dict) -> dict:
+    """Attach configured YouTube cookies to a yt-dlp options dict.
+
+    On a hosted (datacenter) IP, YouTube often demands "confirm you're not a
+    bot"; supplying your cookies gets past it. No-op when nothing is configured.
+    """
+    if config.COOKIES_FILE:
+        opts["cookiefile"] = config.COOKIES_FILE
+    elif config.COOKIES_FROM_BROWSER:
+        opts["cookiesfrombrowser"] = (config.COOKIES_FROM_BROWSER,)
+    return opts
 
 _CHANNEL_HINTS = ("/@", "/channel/", "/c/", "/user/")
 _VIDEO_TABS = ("/videos", "/streams", "/shorts", "/playlists", "/featured")
@@ -239,6 +253,7 @@ def resolve(
         "playlistend": limit,
         "ignoreerrors": True,
     }
+    apply_cookies(opts)
     target = normalize_channel_url(url, tab)
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(target, download=False)
@@ -350,6 +365,7 @@ def build_download_opts(
             opts["format"] = "bv*+ba/b"
         opts["merge_output_format"] = "mp4"
 
+    apply_cookies(opts)
     return opts
 
 

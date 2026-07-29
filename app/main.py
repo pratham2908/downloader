@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import secrets
 import shutil
 import subprocess
 import sys
@@ -10,12 +12,12 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import store, ytdlp_service
+from . import config, store, ytdlp_service
 from .downloads import manager
 from .models import (
     DownloadRequest,
@@ -30,11 +32,72 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 app = FastAPI(title="YouTube Downloader")
 
 
+# --- auth (optional) ------------------------------------------------------
+# When REEL_PASSWORD is set (hosted deployments), gate everything behind HTTP
+# Basic auth. Any username is accepted; only the password is checked. Basic auth
+# is used because it also covers direct file-download links the browser opens.
+
+def _password_ok(header: str) -> bool:
+    if not header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header[6:]).decode("utf-8")
+    except Exception:  # noqa: BLE001
+        return False
+    _, _, supplied = decoded.partition(":")
+    return secrets.compare_digest(supplied, config.PASSWORD or "")
+
+
+@app.middleware("http")
+async def require_password(request: Request, call_next):
+    if config.PASSWORD:
+        if not _password_ok(request.headers.get("Authorization", "")):
+            return Response(
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="Reel"'},
+            )
+    return await call_next(request)
+
+
 # --- pages ---------------------------------------------------------------
 
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/api/config")
+def client_config() -> dict:
+    """Client-visible flags. Lets the UI hide local-only controls when hosted."""
+    return {"hosted": config.HOSTED}
+
+
+@app.get("/api/file/{video_id}")
+def download_file(video_id: str, fmt: str = "video") -> FileResponse:
+    """Stream a downloaded file to the browser — the way to pull a file off a
+    hosted server onto your device.
+
+    Looked up via the library by (video_id, format), and confined to the
+    configured download folder so no arbitrary server path can be requested.
+    """
+    entry = next(
+        (e for e in store.list_history() if e.video_id == video_id and e.format == fmt),
+        None,
+    )
+    if not entry or not entry.filepath:
+        raise HTTPException(404, "No downloaded file recorded for that video.")
+
+    root = Path(store.get_settings().download_dir).expanduser().resolve()
+    try:
+        resolved = Path(entry.filepath).expanduser().resolve()
+        resolved.relative_to(root)  # reject anything outside the download folder
+    except (ValueError, OSError):
+        raise HTTPException(403, "File is outside the download folder.")
+    if not resolved.is_file():
+        raise HTTPException(404, "That file is no longer on disk.")
+
+    return FileResponse(resolved, filename=resolved.name,
+                        media_type="application/octet-stream")
 
 
 # --- resolve / download ---------------------------------------------------
@@ -246,6 +309,8 @@ class PickedFolder(BaseModel):
 
 @app.post("/api/pick-folder", response_model=PickedFolder)
 def pick_folder() -> PickedFolder:
+    if config.HOSTED:
+        raise HTTPException(501, "Folder picker is unavailable on a hosted server.")
     start = Path(store.get_settings().download_dir).expanduser()
     try:
         chosen = native_choose_folder(start)
@@ -262,6 +327,8 @@ class RevealRequest(BaseModel):
 
 @app.post("/api/reveal")
 def reveal(req: RevealRequest) -> dict:
+    if config.HOSTED:
+        raise HTTPException(501, "Reveal is unavailable on a hosted server.")
     path = Path(req.path).expanduser()
     target = path if path.exists() else path.parent
     if not target.exists():
