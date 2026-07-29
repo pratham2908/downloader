@@ -332,6 +332,26 @@ select:focus { outline: none; border-color: var(--ember); }
 .placeholder p { font-family: var(--disp); font-size: 20px; font-weight: 600; margin: 0 0 8px; color: var(--ink); }
 .placeholder span { font-size: 13.5px; color: var(--ink-dim); }
 
+/* ---------- loading skeletons ---------- */
+/* A shimmering placeholder block; add `skeleton` to any sized element. */
+.skeleton { position: relative; overflow: hidden; background: var(--panel-2); }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+  animation: shimmer 1.3s linear infinite;
+}
+/* results grid card */
+.sk-card { background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); overflow: hidden; }
+.sk-card__thumb { aspect-ratio: 16/9; }
+.sk-card__body { padding: 12px 13px 16px; display: flex; flex-direction: column; gap: 9px; }
+.sk-line { height: 11px; border-radius: 5px; }
+.sk-line--short { width: 55%; }
+/* sidebar channel row */
+.sk-channel { display: flex; align-items: center; gap: 10px; padding: 9px 10px; }
+.sk-channel__avatar { width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto; }
+.sk-channel__line { height: 11px; border-radius: 5px; flex: 1; }
+
 /* ---------- selection action bar ---------- */
 .actionbar {
   position: fixed; left: 274px; right: 0; bottom: 0; z-index: 40;

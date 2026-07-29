@@ -103,12 +103,47 @@ function toast(msg, kind = "") {
   }, 3200);
 }
 
+/* ---------- loading skeletons ---------- */
+function skeletonCards(n = 8) {
+  return Array.from({ length: n }, () => `
+    <div class="sk-card">
+      <div class="sk-card__thumb skeleton"></div>
+      <div class="sk-card__body">
+        <div class="sk-line skeleton"></div>
+        <div class="sk-line sk-line--short skeleton"></div>
+      </div>
+    </div>`).join("");
+}
+function gridSkeleton(n = 8) { return `<div class="grid">${skeletonCards(n)}</div>`; }
+function channelSkeleton(n = 4) {
+  return Array.from({ length: n }, () => `
+    <div class="sk-channel">
+      <span class="sk-channel__avatar skeleton"></span>
+      <span class="sk-channel__line skeleton"></span>
+    </div>`).join("");
+}
+function librarySkeleton(n = 5) {
+  return Array.from({ length: n }, () => `
+    <div class="lib-item">
+      <div class="lib-item__thumb skeleton"></div>
+      <div class="lib-item__body">
+        <div class="sk-line skeleton" style="width:70%;margin-bottom:8px"></div>
+        <div class="sk-line sk-line--short skeleton"></div>
+      </div>
+    </div>`).join("");
+}
+function resultsMessage(title, sub) {
+  return `<div class="placeholder"><div class="placeholder__art">◐</div>
+    <p>${esc(title)}</p><span>${esc(sub || "")}</span></div>`;
+}
+
 /* ---------- fetch / resolve ---------- */
 async function doFetch() {
   const url = $("#urlInput").value.trim();
   if (!url) { toast("Paste a link first.", "err"); return; }
   const btn = $("#fetchBtn");
   btn.classList.add("is-loading");
+  $("#results").innerHTML = gridSkeleton(8);  // loading state on the container itself
   try {
     const res = await api("/api/resolve", { method: "POST", body: JSON.stringify({ url, tab: "videos" }) });
     // Fresh fetch: reset all cross-tab state.
@@ -127,6 +162,7 @@ async function doFetch() {
     if (!res.items.length) toast("Nothing found at that link.", "err");
   } catch (e) {
     toast(e.message, "err");
+    $("#results").innerHTML = resultsMessage("Couldn’t fetch that link.", "Check the URL and try again.");
   } finally {
     btn.classList.remove("is-loading");
   }
@@ -201,7 +237,7 @@ async function switchTab(tab) {
 
   const grid = $("#grid");
   const tabbar = $("#tabbar");
-  grid.innerHTML = '<p class="empty-hint">Loading…</p>';
+  grid.innerHTML = skeletonCards(8);
   tabbar?.classList.add("is-loading");
   try {
     const base = state.context?.channelBase || state.context?.url;
@@ -504,9 +540,14 @@ function connectStream() {
 
 /* ---------- saved channels ---------- */
 async function loadChannels() {
-  const res = await api("/api/channels");
-  state.channels = res.channels;
-  renderChannels();
+  $("#channelList").innerHTML = channelSkeleton(4);
+  try {
+    const res = await api("/api/channels");
+    state.channels = res.channels;
+    renderChannels();
+  } catch (e) {
+    $("#channelList").innerHTML = '<p class="empty-hint">Couldn’t load channels.</p>';
+  }
 }
 function renderChannels() {
   const list = $("#channelList");
@@ -581,13 +622,17 @@ async function refreshLibraryCount() {
 }
 
 async function loadLibrary() {
+  $("#libraryList").innerHTML = librarySkeleton(5);
   try {
     const res = await api("/api/history");
     state.library = res.entries;
     $("#libraryCount").textContent = res.entries.length;
     $("#libraryHeadCount").textContent = res.entries.length;
     renderLibrary();
-  } catch (e) { toast(e.message, "err"); }
+  } catch (e) {
+    toast(e.message, "err");
+    $("#libraryList").innerHTML = '<p class="empty-hint">Couldn’t load your library.</p>';
+  }
 }
 
 function renderLibrary() {
