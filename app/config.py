@@ -13,7 +13,9 @@ All are optional — with none set, the app behaves exactly like the local tool.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
+from typing import Optional
 
 _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
@@ -37,6 +39,23 @@ def _bool(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def resolve_cookie_file(content: Optional[str], file: Optional[str],
+                        directory: str) -> Optional[str]:
+    """Decide the cookie file path yt-dlp should use.
+
+    An explicit ``file`` wins. Otherwise, if raw cookies.txt ``content`` was
+    provided (via env — the only way on hosts with no shell/disk, like Render's
+    free tier), write it to a temp file and use that. Returns None if neither.
+    """
+    if file:
+        return file
+    if content and content.strip():
+        path = Path(directory) / "reel_cookies.txt"
+        path.write_text(content, encoding="utf-8")
+        return str(path)
+    return None
+
+
 # MongoDB
 MONGODB_URI = os.getenv("MONGODB_URI") or None
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "youtube_automation")
@@ -46,6 +65,14 @@ HOSTED = _bool("REEL_HOSTED")
 PASSWORD = os.getenv("REEL_PASSWORD") or None
 DOWNLOAD_DIR_OVERRIDE = os.getenv("REEL_DOWNLOAD_DIR") or None
 
-# yt-dlp cookies (to get past datacenter-IP bot checks when hosted)
-COOKIES_FILE = os.getenv("REEL_COOKIES_FILE") or None
+# yt-dlp cookies (to get past datacenter-IP bot checks when hosted).
+#   REEL_COOKIES_FILE      — path to a cookies.txt (needs a disk/shell)
+#   REEL_COOKIES_CONTENT   — the cookies.txt *contents* pasted into an env var
+#                            (works on diskless/shell-less hosts like Render free)
+#   REEL_COOKIES_FROM_BROWSER — pull from a local browser (local use only)
+COOKIES_FILE = resolve_cookie_file(
+    os.getenv("REEL_COOKIES_CONTENT"),
+    os.getenv("REEL_COOKIES_FILE") or None,
+    tempfile.gettempdir(),
+)
 COOKIES_FROM_BROWSER = os.getenv("REEL_COOKIES_FROM_BROWSER") or None

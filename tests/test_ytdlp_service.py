@@ -24,6 +24,22 @@ def test_apply_cookies_none(monkeypatch):
     assert yt.apply_cookies({}) == {}
 
 
+def test_resolve_cookie_file_prefers_explicit_file(tmp_path):
+    assert config.resolve_cookie_file("some content", "/x/cookies.txt", str(tmp_path)) == "/x/cookies.txt"
+
+
+def test_resolve_cookie_file_materializes_content(tmp_path):
+    content = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tX\tY\n"
+    path = config.resolve_cookie_file(content, None, str(tmp_path))
+    assert path is not None
+    assert Path(path).read_text() == content
+
+
+def test_resolve_cookie_file_none_when_empty(tmp_path):
+    assert config.resolve_cookie_file(None, None, str(tmp_path)) is None
+    assert config.resolve_cookie_file("   ", None, str(tmp_path)) is None
+
+
 def test_download_opts_includes_cookies(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "COOKIES_FILE", "/data/cookies.txt")
     monkeypatch.setattr(config, "COOKIES_FROM_BROWSER", None)

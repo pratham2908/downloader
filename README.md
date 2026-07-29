@@ -125,8 +125,10 @@ upload `cookies.txt` to `/data/cookies.txt` via the Shell tab.
 3. Set environment variables:
    - `MONGODB_URI` — so channels/history are shared with your local install.
    - `REEL_PASSWORD` — a login (the app is otherwise open to the world).
-   - `REEL_COOKIES_FILE=/data/cookies.txt` — upload your YouTube `cookies.txt`
-     to the disk so yt-dlp isn't blocked by datacenter-IP bot checks.
+   - Cookies (only needed if YouTube starts asking the server to "confirm you're
+     not a bot"): `REEL_COOKIES_FILE=/data/cookies.txt` with the file on the disk,
+     **or** — on a free/diskless/shell-less host — paste the whole `cookies.txt`
+     content into `REEL_COOKIES_CONTENT` and the app writes it out at startup.
    - (`REEL_HOSTED=1` and `REEL_DOWNLOAD_DIR=/data/downloads` are preset in the image.)
 
 Hosted mode automatically hides the local-only controls (folder picker, Reveal
