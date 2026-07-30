@@ -69,8 +69,17 @@ def index() -> FileResponse:
 
 @app.get("/healthz")
 def healthz() -> dict:
-    """Unauthenticated liveness probe for the host's health checks."""
-    return {"status": "ok"}
+    """Unauthenticated liveness probe, plus minimal deploy diagnostics so the
+    running build can be inspected without a shell (yt-dlp version + whether
+    cookies/auth are actually configured on this instance)."""
+    from yt_dlp.version import __version__ as ytdlp_version
+    return {
+        "status": "ok",
+        "ytdlp": ytdlp_version,
+        "cookies": bool(config.COOKIES_FILE or config.COOKIES_FROM_BROWSER),
+        "auth": bool(config.PASSWORD),
+        "hosted": config.HOSTED,
+    }
 
 
 @app.get("/api/config")
